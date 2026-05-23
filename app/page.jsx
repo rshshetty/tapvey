@@ -64,8 +64,6 @@ const ALL_NEG = new Set(TAG_CATEGORIES.flatMap(c => c.negative));
 
 const PLATFORMS = [
   { id: "google",  label: "Google Reviews", emoji: "🌐", color: "#4285F4", bg: "rgba(66,133,244,0.09)",  border: "rgba(66,133,244,0.28)",  url: "https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4", cta: "Copy & Open Google" },
-  { id: "tripadvisor", label: "TripAdvisor",    emoji: "🦉", color: "#00AA6C", bg: "rgba(0,170,108,0.09)",  border: "rgba(0,170,108,0.28)",   url: "https://www.tripadvisor.com",  cta: "Copy & Open TripAdvisor" },
-  { id: "yelp",     label: "Yelp",            emoji: "⭐", color: "#D32323", bg: "rgba(211,35,35,0.09)",  border: "rgba(211,35,35,0.28)",   url: "https://www.yelp.com",         cta: "Copy & Open Yelp" },
   { id: "private", label: "Private Feedback",emoji: "💬", color: "#B07820", bg: "rgba(232,160,48,0.09)", border: "rgba(232,160,48,0.28)",  url: null,                          cta: "Send Private Feedback" },
 ];
 
@@ -84,7 +82,6 @@ const C = {
   text: "#1A1008", textMuted: "#6B503A",
   borderA: "rgba(232,160,48,0.22)", borderALight: "rgba(232,160,48,0.15)",
   green: "#1B6B3A", greenBg: "rgba(76,175,80,0.09)", greenBorder: "rgba(76,175,80,0.22)",
-  tripadvisorGreen: "#00AA6C", yelpRed: "#D32323",
 };
 
 const CSS = `
@@ -115,6 +112,30 @@ const CSS = `
   textarea:focus,input:focus { outline:none; }
   ::-webkit-scrollbar { width:5px; }
   ::-webkit-scrollbar-thumb { background:rgba(232,160,48,.22); border-radius:4px; }
+  .hamburger { display:none; background:none; border:none; cursor:pointer; padding:8px; }
+  .mobile-menu { display:none; }
+  @media (max-width:768px) {
+    .nav-links { display:none !important; }
+    .hamburger { display:flex; align-items:center; justify-content:center; }
+    .mobile-menu { display:flex; flex-direction:column; position:fixed; top:66px; left:0; right:0; background:rgba(250,247,242,.98); backdrop-filter:blur(16px); padding:16px 5%; gap:4px; border-bottom:1px solid ${C.borderALight}; z-index:199; animation:fadeIn .2s ease; }
+    .mobile-menu.dark-mobile { background:rgba(14,9,4,.98); }
+    .mobile-menu a { padding:12px 0; font-size:16px !important; }
+    .mobile-menu button { width:100%; margin-top:8px; }
+    .hero-grid { grid-template-columns:1fr !important; gap:40px !important; text-align:center; }
+    .hero-card-wrap { justify-content:center !important; }
+    .hero-stats { flex-direction:column !important; gap:20px !important; align-items:center; }
+    .hero-stat { padding-right:0 !important; margin-right:0 !important; border-right:none !important; text-align:center; }
+    .compliance-grid { grid-template-columns:1fr !important; gap:32px !important; }
+    .footer-nav { gap:16px !important; justify-content:center; }
+    .footer-bottom { flex-direction:column !important; text-align:center; gap:8px !important; }
+    section { padding-top:56px !important; padding-bottom:56px !important; }
+    .hero-section { padding-top:80px !important; padding-bottom:56px !important; min-height:auto !important; }
+  }
+  @media (max-width:480px) {
+    .hero-grid { gap:32px !important; }
+    .hero-buttons { flex-direction:column; width:100%; }
+    .hero-buttons button { width:100%; }
+  }
 `;
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
@@ -191,8 +212,7 @@ function HeroCard({ step }) {
             <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
               {[
                 { emoji:"🌐", label:"Google Reviews", color:"#4285F4" },
-                { emoji:"🦉", label:"TripAdvisor",    color:"#00AA6C" },
-                { emoji:"⭐", label:"Yelp",            color:"#D32323" },
+                { emoji:"💬", label:"Private Feedback", color:"#B07820" },
               ].map(p => (
                 <div key={p.label} style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 11px", borderRadius:9, background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,255,255,.1)" }}>
                   <span style={{ fontSize:15 }}>{p.emoji}</span>
@@ -233,8 +253,6 @@ function PlatCard({ p, recommended, onSelect, selected }) {
         </div>
         <div style={{ fontSize:12, color:"rgba(255,255,255,.38)", lineHeight:1.45 }}>
           {p.id==="google"  && "Helps your restaurant rank higher in Search & Maps"}
-          {p.id==="tripadvisor"  && "Reaches travelers and tourists planning their visit"}
-          {p.id==="yelp"  && "Strong signal on the platform diners check most often"}
           {p.id==="private" && "Stays with the restaurant team — never public"}
         </div>
       </div>
@@ -257,6 +275,7 @@ export default function TapveyLanding() {
   const [copied, setCopied]           = useState(false);
   const [sent, setSent]               = useState(false);
   const [scrolled, setScrolled]       = useState(false);
+  const [menuOpen, setMenuOpen]       = useState(false);
   const [heroStep, setHeroStep]       = useState(0);
 
   // Waitlist form state
@@ -290,34 +309,12 @@ export default function TapveyLanding() {
 
     const posTags  = selectedTags.filter(t => ALL_POS.has(t));
     const negTags  = selectedTags.filter(t => ALL_NEG.has(t));
-    const mixed    = posTags.length > 0 && negTags.length > 0;
-    const posHeavy = posTags.length > negTags.length;
-    const negHeavy = negTags.length > posTags.length;
-
-    const prompt = `Write a natural, human-sounding restaurant review based only on these inputs:
-
-Rating: ${rating}/5 stars
-${posTags.length > 0 ? `Highlights: ${posTags.join(", ")}` : ""}
-${negTags.length > 0 ? `Areas to improve: ${negTags.join(", ")}` : ""}
-${notes ? `Customer notes: ${notes}` : ""}
-
-Rules:
-- 2–3 sentences only
-- Sound completely human — not like AI or marketing copy
-- Only reference the selected tags. Do not invent any detail.
-- No emojis
-- ${mixed && posHeavy ? "Mostly positive tone — acknowledge the issue briefly at the end" : ""}
-- ${mixed && negHeavy ? "Lead with the main concerns, but acknowledge what worked" : ""}
-- ${mixed && !posHeavy && !negHeavy ? "Balanced — give equal weight to positives and negatives" : ""}
-- ${!mixed && isPos ? "Positive tone — suitable for public review platforms" : ""}
-- ${!mixed && !isPos ? "Constructive, empathetic tone — suitable for private feedback to the restaurant" : ""}
-- Output only the review text. No preamble.`;
 
     try {
-      const res  = await fetch("https://api.anthropic.com/v1/messages", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1000, messages:[{role:"user",content:prompt}] }) });
+      const res  = await fetch("/api/generate", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ rating, posTags, negTags, notes, isPos }) });
       const data = await res.json();
-      const txt  = data.content[0].text;
-      setReview(txt); setEdited(txt);
+      if (!res.ok) throw new Error(data.error);
+      setReview(data.text); setEdited(data.text);
     } catch { setReview("Could not generate. Please try again."); }
     setGenerating(false);
   };
@@ -386,7 +383,7 @@ Rules:
             </div>
             <span style={{ fontFamily:"'Libre Baskerville',serif", fontSize:21, fontWeight:700, color:scrolled?C.text:"white" }}>tapvey</span>
           </div>
-          <div style={{ display:"flex", gap:28, alignItems:"center" }}>
+          <div className="nav-links" style={{ display:"flex", gap:28, alignItems:"center" }}>
             {[["How it works","how-it-works"],["Why Tapvey","why"],["Features","features"]].map(([item,id]) => (
               <a key={item} href="#" onClick={e=>{ e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior:"smooth" }); }} className={scrolled?"nav-ad":"nav-a"}>{item}</a>
             ))}
@@ -396,15 +393,31 @@ Rules:
               Join Waitlist
             </button>
           </div>
+          <button className="hamburger" onClick={() => setMenuOpen(m => !m)} aria-label="Menu">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={scrolled ? C.text : "white"} strokeWidth="2" strokeLinecap="round">
+              {menuOpen ? <><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></> : <><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/></>}
+            </svg>
+          </button>
         </div>
+        {menuOpen && (
+          <div className={`mobile-menu${scrolled ? "" : " dark-mobile"}`}>
+            {[["How it works","how-it-works"],["Why Tapvey","why"],["Features","features"]].map(([item,id]) => (
+              <a key={item} href="#" onClick={e=>{ e.preventDefault(); setMenuOpen(false); document.getElementById(id)?.scrollIntoView({ behavior:"smooth" }); }} className={scrolled?"nav-ad":"nav-a"}>{item}</a>
+            ))}
+            <button style={{ padding:"12px 22px", borderRadius:9, fontSize:15, fontWeight:600, cursor:"pointer", background:C.amber, color:C.dark, border:"none" }}
+              onClick={() => { setMenuOpen(false); document.getElementById("waitlist")?.scrollIntoView({ behavior:"smooth" }); }}>
+              Join Waitlist
+            </button>
+          </div>
+        )}
       </nav>
 
       {/* ── HERO ─────────────────────────────────────────────────────────────── */}
-      <section style={{ background:C.dark, minHeight:"100vh", display:"flex", alignItems:"center", position:"relative", overflow:"hidden", padding:"90px 5% 80px" }}>
+      <section className="hero-section" style={{ background:C.dark, minHeight:"100vh", display:"flex", alignItems:"center", position:"relative", overflow:"hidden", padding:"90px 5% 80px" }}>
         <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"radial-gradient(ellipse 60% 60% at 15% 50%,rgba(232,160,48,.07) 0%,transparent 70%),radial-gradient(ellipse 40% 50% at 85% 25%,rgba(232,160,48,.04) 0%,transparent 60%)" }} />
         <div style={{ position:"absolute", top:0, left:0, right:0, height:1, background:"linear-gradient(to right,transparent,rgba(232,160,48,.3),transparent)" }} />
 
-        <div style={{ maxWidth:1240, margin:"0 auto", width:"100%", display:"grid", gridTemplateColumns:"1fr 420px", gap:72, alignItems:"center" }}>
+        <div className="hero-grid" style={{ maxWidth:1240, margin:"0 auto", width:"100%", display:"grid", gridTemplateColumns:"1fr 420px", gap:72, alignItems:"center" }}>
           <div className="fu">
             {/* Legal-clear framing badge */}
             <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(27,107,58,.14)", border:"1px solid rgba(27,107,58,.3)", borderRadius:100, padding:"6px 16px", marginBottom:26 }}>
@@ -419,7 +432,7 @@ Rules:
               Tapvey turns happy guests into the kind of detailed, specific reviews AI can actually extract answers from. Unhappy guests are offered a private way to share concerns.
             </p>
 
-            <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+            <div className="hero-buttons" style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
               <button style={{ padding:"14px 28px", borderRadius:11, fontSize:15, fontWeight:600, cursor:"pointer", background:C.amber, color:C.dark, border:"none" }}
                 onClick={() => document.getElementById("waitlist")?.scrollIntoView({ behavior:"smooth" })}
                 onMouseEnter={e=>e.target.style.background=C.amberLight} onMouseLeave={e=>e.target.style.background=C.amber}>
@@ -435,7 +448,7 @@ Rules:
             {/* Platform logos */}
             <div style={{ marginTop:36, display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
               <span style={{ fontSize:12, color:"rgba(255,255,255,.3)", marginRight:4 }}>Routes to</span>
-              {[["🌐","Google"],["🦉","TripAdvisor"],["⭐","Yelp"],["💬","Private"]].map(([e,l]) => (
+              {[["🌐","Google"],["💬","Private"]].map(([e,l]) => (
                 <div key={l} style={{ display:"flex", alignItems:"center", gap:5, background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,255,255,.1)", borderRadius:100, padding:"4px 12px" }}>
                   <span style={{ fontSize:13 }}>{e}</span>
                   <span style={{ fontSize:12, color:"rgba(255,255,255,.55)", fontWeight:500 }}>{l}</span>
@@ -444,9 +457,9 @@ Rules:
             </div>
 
             {/* Stats */}
-            <div style={{ marginTop:44, display:"flex", gap:0 }}>
-              {[["&lt;60s","Customer time"],["0","Typing required"],["4","Review platforms"]].map(([v,l],i) => (
-                <div key={l} style={{ paddingRight:32, marginRight:32, borderRight:i<2?"1px solid rgba(255,255,255,.08)":"none" }}>
+            <div className="hero-stats" style={{ marginTop:44, display:"flex", gap:0 }}>
+              {[["&lt;60s","Customer time"],["0","Typing required"],["2","Review channels"]].map(([v,l],i) => (
+                <div key={l} className="hero-stat" style={{ paddingRight:32, marginRight:32, borderRight:i<2?"1px solid rgba(255,255,255,.08)":"none" }}>
                   <div style={{ fontFamily:"'Libre Baskerville',serif", fontSize:28, fontWeight:700, color:C.amber }} dangerouslySetInnerHTML={{ __html:v }} />
                   <div style={{ fontSize:12, color:"rgba(255,255,255,.35)", marginTop:3 }}>{l}</div>
                 </div>
@@ -454,7 +467,7 @@ Rules:
             </div>
           </div>
 
-          <div className="fu2" style={{ display:"flex", justifyContent:"flex-end" }}>
+          <div className="fu2 hero-card-wrap" style={{ display:"flex", justifyContent:"flex-end" }}>
             <HeroCard step={heroStep} />
           </div>
         </div>
@@ -471,7 +484,7 @@ Rules:
               { n:"01", icon:"📱", t:"Customer Scans QR", d:"They scan your unique QR code — displayed at the table, counter, or receipt. No app download. No login." },
               { n:"02", icon:"⭐", t:"Rates & Selects Tags", d:"Star rating + curated experience tags. The whole interaction takes under 30 seconds. Works in 30+ languages." },
               { n:"03", icon:"✨", t:"AI Writes the Review", d:"AI transforms their tag selections into a natural, human-sounding review — using only the words they actually chose." },
-              { n:"04", icon:"🔀", t:"Customer Chooses Where", d:"They pick where to share: Google, TripAdvisor, Yelp, or privately with your team. All options are always available." },
+              { n:"04", icon:"🔀", t:"Customer Chooses Where", d:"They pick where to share: Google Reviews publicly, or privately with your team. All options are always available." },
             ].map((s, i) => (
               <div key={i} className="lift" style={{ background:C.card, borderRadius:18, padding:"32px 26px", border:`1px solid ${C.borderALight}`, position:"relative", overflow:"hidden" }}>
                 <div style={{ position:"absolute", top:18, right:22, fontFamily:"'Libre Baskerville',serif", fontSize:52, fontWeight:700, color:"rgba(232,160,48,.07)", lineHeight:1 }}>{s.n}</div>
@@ -847,12 +860,12 @@ Rules:
 
       {/* ── EVERY VOICE MATTERS (compliance-reframed routing) ────────────────── */}
       <section style={{ padding:"96px 5%", background:C.cream }}>
-        <div style={{ maxWidth:1240, margin:"0 auto", display:"grid", gridTemplateColumns:"1fr 1fr", gap:80, alignItems:"center" }}>
+        <div className="compliance-grid" style={{ maxWidth:1240, margin:"0 auto", display:"grid", gridTemplateColumns:"1fr 1fr", gap:80, alignItems:"center" }}>
           <div>
             <Badge s={{ marginBottom:18 }}>Compliant by design</Badge>
             <h2 style={{ fontFamily:"'Libre Baskerville',serif", fontSize:"clamp(28px,3vw,42px)", fontWeight:700, margin:"0 0 18px", lineHeight:1.2 }}>Smart Routing.<br />Always Compliant.</h2>
             <p style={{ fontSize:17, color:C.textMuted, lineHeight:1.72, marginBottom:28 }}>
-              Happy customers see Google, TripAdvisor, and Yelp — the platforms where their review makes the most impact. Customers with concerns see private feedback first, prominently — with public options still available below. Nobody is ever blocked from posting publicly.
+              Happy customers see Google Reviews — the platform where their review makes the most impact. Customers with concerns see private feedback first, prominently — with Google still available below. Nobody is ever blocked from posting publicly.
             </p>
             <div style={{ background:"rgba(27,107,58,.07)", border:"1px solid rgba(27,107,58,.2)", borderRadius:14, padding:"18px 20px", marginBottom:18 }}>
               <div style={{ fontWeight:600, fontSize:14, color:"#1B6B3A", marginBottom:6 }}>✓ Google ToS (April 2026) Compliant</div>
@@ -877,12 +890,10 @@ Rules:
             <div style={{ background:C.greenBg, borderRadius:14, padding:"16px", border:`1px solid ${C.greenBorder}`, marginBottom:12 }}>
               <div style={{ fontSize:12, fontWeight:700, color:C.green, marginBottom:10 }}>⭐⭐⭐⭐⭐ High rating (4–5 stars)</div>
               <div style={{ display:"flex", gap:8 }}>
-                {[["🌐","Google"],["🦉","TripAdvisor"],["⭐","Yelp"]].map(([e,l]) => (
-                  <div key={l} style={{ flex:1, background:C.card, borderRadius:9, padding:"8px 6px", textAlign:"center", border:`1px solid ${C.greenBorder}` }}>
-                    <div style={{ fontSize:18, marginBottom:3 }}>{e}</div>
-                    <div style={{ fontSize:11, fontWeight:600, color:C.green }}>{l}</div>
-                  </div>
-                ))}
+                <div style={{ flex:1, background:C.card, borderRadius:9, padding:"8px 6px", textAlign:"center", border:`1px solid ${C.greenBorder}` }}>
+                  <div style={{ fontSize:18, marginBottom:3 }}>🌐</div>
+                  <div style={{ fontSize:11, fontWeight:600, color:C.green }}>Google</div>
+                </div>
               </div>
               <div style={{ fontSize:11, color:"#4CAF80", marginTop:8 }}>Private feedback not shown — not relevant to their experience.</div>
             </div>
@@ -896,12 +907,10 @@ Rules:
               </div>
               <div style={{ fontSize:11, color:C.textMuted, marginBottom:7 }}>— or share publicly —</div>
               <div style={{ display:"flex", gap:7 }}>
-                {[["🌐","Google"],["🦉","TripAdvisor"],["⭐","Yelp"]].map(([e,l]) => (
-                  <div key={l} style={{ flex:1, background:"rgba(255,255,255,.5)", borderRadius:9, padding:"7px 5px", textAlign:"center", border:`1px solid ${C.borderALight}` }}>
-                    <div style={{ fontSize:16, marginBottom:2 }}>{e}</div>
-                    <div style={{ fontSize:10, fontWeight:600, color:C.textMuted }}>{l}</div>
-                  </div>
-                ))}
+                <div style={{ flex:1, background:"rgba(255,255,255,.5)", borderRadius:9, padding:"7px 5px", textAlign:"center", border:`1px solid ${C.borderALight}` }}>
+                  <div style={{ fontSize:16, marginBottom:2 }}>🌐</div>
+                  <div style={{ fontSize:10, fontWeight:600, color:C.textMuted }}>Google</div>
+                </div>
               </div>
               <div style={{ fontSize:11, color:"#4CAF80", marginTop:8 }}>Google link always visible. Never blocked. ✓ Compliant.</div>
             </div>
@@ -916,9 +925,9 @@ Rules:
 
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(270px,1fr))", gap:22 }}>
             {[
-              { icon:"🌐", color:"#4285F4",                t:"Multi-Platform Routing", d:"Routes happy customers wherever their review matters most — Google, TripAdvisor, Yelp, OpenTable, and regional platforms across India, Europe, and beyond." },
-              { icon:"🗣️", color:C.tripadvisorGreen,      t:"30+ Languages",          d:"Customers review in their native language — English, Spanish, French, German, Italian, Portuguese, Hindi, Arabic, Japanese, Mandarin, and more." },
-              { icon:"🎯", color:C.yelpRed,                t:"Adapts to Your Region",  d:"Chip libraries adjust to your cuisine, customer base, and country — a vegan café in Berlin sees different tags than a steakhouse in Texas." },
+              { icon:"🌐", color:"#4285F4",                t:"Smart Review Routing", d:"Routes happy customers to Google Reviews where their review makes the most impact. Unhappy customers see a private feedback option first." },
+              { icon:"🗣️", color:"#00AA6C",                  t:"30+ Languages",          d:"Customers review in their native language — English, Spanish, French, German, Italian, Portuguese, Hindi, Arabic, Japanese, Mandarin, and more." },
+              { icon:"🎯", color:"#D32323",                  t:"Adapts to Your Region",  d:"Chip libraries adjust to your cuisine, customer base, and country — a vegan café in Berlin sees different tags than a steakhouse in Texas." },
               { icon:"📊", color:C.amber,                  t:"Feedback Analytics",     d:"See which tags appear most often, track sentiment over time, and understand exactly what your customers experience." },
               { icon:"💬", color:"#9C78E0",                t:"Private Feedback Inbox", d:"Every concern a customer raises stays between them and you — never posted publicly without their choice." },
               { icon:"🤖", color:"#4CAF80",                t:"AI Improvement Tips",    d:"Tapvey analyses private feedback and surfaces the top issues your customers keep mentioning — with concrete suggestions for your team." },
@@ -1100,7 +1109,7 @@ Rules:
             Get More Reviews.<br />Understand Every Guest.
           </h2>
           <p style={{ fontSize:18, color:C.darkMid, margin:"0 0 36px", lineHeight:1.65, maxWidth:520, marginLeft:"auto", marginRight:"auto" }}>
-            A QR code, a 30-second experience for your guests, and a steady stream of genuine reviews — on the platforms that matter most to your restaurant.
+            A QR code, a 30-second experience for your guests, and a steady stream of genuine Google reviews — with private feedback for the rest.
           </p>
           <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
             <button onClick={() => document.getElementById("waitlist")?.scrollIntoView({ behavior:"smooth" })} style={{ padding:"15px 34px", background:C.dark, color:"white", border:"none", borderRadius:12, fontSize:16, fontWeight:600, cursor:"pointer" }}>Join the Waitlist</button>
@@ -1129,14 +1138,14 @@ Rules:
             </div>
 
             {/* Nav links */}
-            <div style={{ display:"flex", alignItems:"center", gap:32, flexWrap:"wrap" }}>
+            <div className="footer-nav" style={{ display:"flex", alignItems:"center", gap:32, flexWrap:"wrap" }}>
               {[
                 ["How it works", () => document.getElementById("how-it-works")?.scrollIntoView({ behavior:"smooth" })],
                 ["Why Tapvey",   () => document.getElementById("why")?.scrollIntoView({ behavior:"smooth" })],
                 ["Live Demo",    () => document.getElementById("demo")?.scrollIntoView({ behavior:"smooth" })],
                 ["Features",     () => document.getElementById("features")?.scrollIntoView({ behavior:"smooth" })],
                 ["Join Waitlist",() => document.getElementById("waitlist")?.scrollIntoView({ behavior:"smooth" })],
-                ["Contact us",   () => window.open("https://wa.me/919999999999?text=Hi%2C%20I%27d%20like%20to%20know%20more%20about%20Tapvey.", "_blank")],
+                ["Contact us",   () => window.location.href="mailto:hello@tapvey.com"],
               ].map(([l, action]) => (
                 <a key={l} href="#" onClick={e=>{ e.preventDefault(); action(); }} className="nav-a" style={{ fontSize:14 }}>{l}</a>
               ))}
@@ -1145,9 +1154,13 @@ Rules:
           </div>
 
           {/* Bottom bar */}
-          <div style={{ borderTop:"1px solid rgba(255,255,255,.05)", paddingTop:24, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
-            <span style={{ fontSize:12, color:"rgba(255,255,255,.2)" }}>© 2025 Tapvey Technologies Pvt Ltd. All rights reserved.</span>
-            <span style={{ fontSize:12, color:"rgba(255,255,255,.2)" }}>Made in Tulu Nadu 🇮🇳</span>
+          <div className="footer-bottom" style={{ borderTop:"1px solid rgba(255,255,255,.05)", paddingTop:24, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
+            <span style={{ fontSize:12, color:"rgba(255,255,255,.2)" }}>© 2026 Tapvey Technologies Pvt Ltd. All rights reserved.</span>
+            <div style={{ display:"flex", gap:20, alignItems:"center" }}>
+              <a href="/privacy" style={{ fontSize:12, color:"rgba(255,255,255,.25)", textDecoration:"none" }}>Privacy Policy</a>
+              <a href="/terms" style={{ fontSize:12, color:"rgba(255,255,255,.25)", textDecoration:"none" }}>Terms of Service</a>
+              <span style={{ fontSize:12, color:"rgba(255,255,255,.2)" }}>Made in Tulu Nadu 🇮🇳</span>
+            </div>
           </div>
 
         </div>
